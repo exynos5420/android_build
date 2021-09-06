@@ -1,0 +1,17 @@
+[
+	{
+		"device": "v1awifi",
+		"version": "14.1",
+		"build_type": "userdebug"
+	},
+	{
+		"device": "v1awifi",
+		"version": "14.1-vanilla",
+		"build_type": "userdebug"
+	},
+        {
+                "device": "v1awifi",
+                "version": "17.1",
+                "build_type": "userdebug"
+        }
+]

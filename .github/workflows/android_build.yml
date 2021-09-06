@@ -1,0 +1,79 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Exynos5420 Android Build
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Device you want to build'
+        required: true
+      version:
+        description: 'Exynos5420 Android Version (14.1, 14.1-vanilla, 17.1)'
+        required: true
+      build_type:
+        description: 'Type of build you want to create'
+        required: true
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: self-hosted
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a set of commands using the runners shell
+      - name: Lets Build Android
+        env:
+          USE_CCACHE: 1
+          CCACHE_DIR: ~/android/lineage/.ccache
+          CCACHE_COMPRESS: 1
+          DEVICE: ${{ github.event.inputs.device }}
+          VERSION: ${{ github.event.inputs.version }}
+          BUILD_TYPE: ${{ github.event.inputs.build_type }}
+        run: |
+          PATH="$HOME/bin:$PATH" 
+          sudo update-alternatives --set python /usr/bin/python3
+          if [ $VERSION = '17.1' ]; then
+            export CCACHE_EXEC=$(which ccache)
+            export WITHOUT_CHECK_API=true
+          fi
+          cd ~/android/lineage/$VERSION
+          rm -rf .repo/local_manifests/*
+          cp ${GITHUB_WORKSPACE}/manifests/lineage-$VERSION.xml .repo/local_manifests/roomservice.xml
+          repo forall -vc "git reset --hard"
+          repo sync -d -c --force-sync
+          . build/envsetup.sh
+          if [ $VERSION = '14.1' ] || [ $VERSION = '14.1-vanilla' ]; then
+            sudo update-alternatives --set python /usr/bin/python2.7
+            export LC_ALL=C
+            export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/jre/
+            export JDK_HOME=/usr/lib/jvm/java-8-openjdk-amd64/
+            export PATH=$JDK_HOME/bin:$JAVA_HOME:$PATH
+            export JACK_SERVER_VM_ARGUMENTS="-Xmx10g -Dfile.encoding=UTF-8 -XX:+TieredCompilation"
+            ./prebuilts/sdk/tools/jack-admin start-server
+          fi
+          mka clean
+          patch packages/apps/Updater/res/values/strings.xml < ${GITHUB_WORKSPACE}/update-exynos5420.patch
+          lunch lineage_$DEVICE-$BUILD_TYPE
+          mka bacon
+          if [ $VERSION = '14.1' ] || [ $VERSION = '14.1-vanilla' ]; then
+           ./prebuilts/sdk/tools/jack-admin list-server && ./prebuilts/sdk/tools/jack-admin kill-server
+          fi
+          #if [ $VERSION = '14.1' ]; then
+          #  scp ~/android/lineageos/$VERSION/out/target/product/$DEVICE/lineage-14.1-*.zip* download@portal.exynos5420.com:/home/download/Jenkins/LineageOS-14.1-Deathly/$DEVICE/
+          #elif [ $VERSION = '14.1-vanilla' ]; then
+          #  scp ~/android/lineageos/$VERSION/out/target/product/$DEVICE/lineage-14.1-*.zip* download@portal.exynos5420.com:/home/download/Jenkins/LineageOS-14.1-Vanilla/$DEVICE/
+          #elif [ $VERSION = '17.1' ]; then
+          #  scp ~/android/lineageos/$VERSION/out/target/product/$DEVICE/lineage-14.1-*.zip* download@portal.exynos5420.com:/home/download/Jenkins/LineageOS-17.1/$DEVICE/
+          #fi
+          mka clean
+
